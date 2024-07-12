@@ -25,12 +25,15 @@ macro_rules! separated_mono {
 }
 
 fn main() {
+    let width = 275.0;
+    let height = 480.0;
+    println!("[INFO] Starting with window size: {width}x{height}");
     let native_options = eframe::NativeOptions{
 	viewport: egui::ViewportBuilder::default()
 	    .with_title("Hai Domo!")
 	    //.with_resizable(false)
-	    .with_min_inner_size(egui::Vec2 { x:260.0, y:480.0 })
-	    .with_inner_size(egui::Vec2 { x:260.0, y:480.0 })
+	    .with_min_inner_size(egui::Vec2 { x: width, y: height })
+	    .with_inner_size(egui::Vec2 { x: width, y: height })
 	//.with_always_on_top(),
 	    ,
 	..Default::default()
