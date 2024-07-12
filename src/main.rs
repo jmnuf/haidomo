@@ -1,3 +1,6 @@
+mod stopwatch;
+use stopwatch::*;
+
 use std::time::{Instant, Duration};
 use std::fmt::Display;
 use eframe::egui;
@@ -20,14 +23,8 @@ macro_rules! separated_mono {
 	}
     }
 }
-macro_rules! rect {
-    ($x: expr, $y: expr, $w: expr, $h: expr) => {
-	egui::Rect::from_center_size(egui::Pos2::new($x, $y), egui::Vec2::new($w, $h))
-    }
-}
 
 fn main() {
-    println!("Hello, world!");
     let native_options = eframe::NativeOptions{
 	viewport: egui::ViewportBuilder::default()
 	    .with_title("Hai Domo!")
@@ -45,28 +42,28 @@ fn main() {
 }
 
 struct HaiDomoApp {
-    started: Option<Instant>,
-    timed: Duration,
+    stopwatch: Stopwatch
 }
 
 impl HaiDomoApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+	println!("[INFO] Creating HaiDomoApp...");
 	Self {
-	    started: None,
-	    timed: Duration::from_secs(0),
+	    stopwatch: Stopwatch::new(),
 	}
+    }
+
+    fn timestamp(&self) -> Timestamp {
+	self.stopwatch.timestamp()
     }
 }
 
 impl eframe::App for HaiDomoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-	let timed: Timed = (self.timed + match self.started {
-	    Some(x) => {
-		ctx.request_repaint();
-		x.elapsed()
-	    },
-	    None => Duration::from_secs(0)
-	}).into();
+	if self.stopwatch.is_running() {
+	    ctx.request_repaint();
+	}
+	let timestamp = self.timestamp().expanded();
 
 	egui::TopBottomPanel::top("run_title").show(ctx, |ui| {
 	    ui.heading("Ur Mom");
@@ -80,22 +77,7 @@ impl eframe::App for HaiDomoApp {
 		let max_rect = ui.max_rect();
 		ui.set_width(max_rect.width());
 		ui.vertical_centered_justified(|ui| {
-		    TimedSplit::from_current("Split 1".into(), timed.clone(), None)
-			.draw_ui(ui, false);
-		    let background_color = egui::Color32::LIGHT_GREEN;
-		    let l1 = separated_mono!(ui, "Split 1");
-		    p.rect_filled(
-			l1.rect,
-			egui::Rounding::ZERO,
-			background_color
-		    );
-		    p.text(
-			l1.rect.center(),
-			egui::Align2::CENTER_CENTER,
-			"Split 1",
-			egui::FontId::monospace(14.0),
-			egui::Color32::BLACK
-		    );
+		    separated_mono!(ui, "Split 1");
 		    separated_mono!(ui, "Split 2");
 		    separated_mono!(ui, "Split 3");
 		});
@@ -108,18 +90,14 @@ impl eframe::App for HaiDomoApp {
 		    .fill(egui::Color32::LIGHT_BLUE)
 		    .inner_margin(4.0)
 	    }).show(ctx, |ui| {
-		timed.clone().ui(ui);
+		timestamp.show(ui, 64.0, 32.0);
 
 		if ui.input(|i| i.key_pressed(egui::Key::Space)) {
-		    match self.started {
-			Some(_) => {
-			    self.started = None;
-			    self.timed = timed.clone_duration();
-			},
-			None => {
-			    self.started = Some(Instant::now());
-			    ctx.request_repaint();
-			}
+		    if self.stopwatch.toggle() {
+			println!("[INFO] Stopwatch has been turned on");
+			ctx.request_repaint();
+		    } else {
+			println!("[INFO] Stopwatch has been turned off");
 		    }
 		}
 	    });
