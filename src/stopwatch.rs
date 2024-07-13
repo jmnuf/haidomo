@@ -189,35 +189,45 @@ impl egui::Widget for Stopwatch {
 
 
 pub struct StopSplit {
-    stopwatch: Box<Stopwatch>,
     split_start: Duration,
     elapsed: Duration,
     completed: bool,
 }
 impl StopSplit {
-    pub fn split_from(stopwatch: Stopwatch) -> Self {
-	let split_start = stopwatch.time_elapsed();
+    pub fn new() -> Self {
 	Self {
-	    stopwatch: Box::new(stopwatch),
+	    split_start: zero_dur(),
+	    elapsed: zero_dur(),
+	    completed: false,
+	}
+    }
+    
+    pub fn new_started(sw: &Stopwatch) -> Self {
+	let split_start = sw.time_elapsed();
+	Self {
 	    split_start: split_start,
 	    elapsed: zero_dur(),
 	    completed: false,
 	}
     }
 
-    pub fn time_elapsed(&self) -> Duration {
+    pub fn is_done(&self) -> bool {
+	self.completed
+    }
+
+    pub fn time_elapsed(&self, sw: &Stopwatch) -> Duration {
 	if self.completed {
 	    return self.elapsed;
 	}
-	let elapsed = self.stopwatch.time_elapsed() - self.split_start;
+	let elapsed = sw.time_elapsed() - self.split_start;
 	return elapsed;
     }
 
-    pub fn toggle_split(&mut self) {
+    pub fn toggle_split(&mut self, sw: &Stopwatch) {
 	if self.completed {
 	    self.completed = false;
 	} else {
-	    let elapsed = self.stopwatch.time_elapsed() - self.split_start;
+	    let elapsed = sw.time_elapsed() - self.split_start;
 	    self.elapsed = elapsed;
 	    self.completed = true;
 	}

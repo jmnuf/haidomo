@@ -1,10 +1,10 @@
 mod stopwatch;
 use stopwatch::*;
 
-use std::time::{Instant, Duration};
+use std::time::{Duration};
 use std::fmt::Display;
 use eframe::egui;
-use eframe::egui::{Widget, WidgetText};
+use eframe::egui::{Widget};
 
 macro_rules! rich_text {
     ($text: expr) => {
@@ -24,8 +24,8 @@ macro_rules! separated_mono {
     }
 }
 
-fn main() {
-    let width = 275.0;
+fn main() -> Result<(), eframe::Error> {
+    let width = 280.0;
     let height = 480.0;
     println!("[INFO] Starting with window size: {width}x{height}");
     let native_options = eframe::NativeOptions{
@@ -39,13 +39,22 @@ fn main() {
 	..Default::default()
     };
 
-    let _ = eframe::run_native("Hai Domo!", native_options, Box::new(|cc| {
-	Box::new(HaiDomoApp::new(cc))
-    }));
+    eframe::run_native("Hai Domo!", native_options, Box::new(|cc| {
+	let sw = Stopwatch::new();
+	let mut splits = Vec::new();
+	for i in 1..4 {
+	    let name = format!("Split-{:02}", i);
+	    let data = StopSplit::new();
+	    let split = (name, data);
+	    splits.push(split);
+	}
+	Box::new(HaiDomoApp::new_with_splits(cc, sw, splits))
+    }))
 }
 
 struct HaiDomoApp {
-    stopwatch: Stopwatch
+    stopwatch: Stopwatch,
+    splits: Vec<(String, StopSplit)>,
 }
 
 impl HaiDomoApp {
@@ -53,7 +62,22 @@ impl HaiDomoApp {
 	println!("[INFO] Creating HaiDomoApp...");
 	Self {
 	    stopwatch: Stopwatch::new(),
+	    splits: Vec::new(),
 	}
+    }
+
+    fn new_with_splits(_cc: &eframe::CreationContext<'_>, stopwatch: Stopwatch, splits: Vec<(String, StopSplit)>) -> Self {
+	println!("[INFO] Creating HaiDomoApp with {} splits...", splits.len());
+	Self {
+	    stopwatch: stopwatch,
+	    splits: splits,
+	}
+    }
+
+    fn add_split(&mut self, name: String) {
+	let data = StopSplit::new();
+	let split = (name, data);
+	self.splits.push(split);
     }
 
     fn timestamp(&self) -> Timestamp {
@@ -76,13 +100,24 @@ impl eframe::App for HaiDomoApp {
 	    let max_rect = ui.max_rect();
 	    ui.set_width(max_rect.width());
 	    egui::ScrollArea::vertical().show(ui, |ui| {
-		let p = ui.painter().clone();
 		let max_rect = ui.max_rect();
 		ui.set_width(max_rect.width());
 		ui.vertical_centered_justified(|ui| {
-		    separated_mono!(ui, "Split 1");
-		    separated_mono!(ui, "Split 2");
-		    separated_mono!(ui, "Split 3");
+		    let mut processing_split = false;
+		    for s in self.splits.iter() {
+			let name = s.0.clone();
+			let data = &s.1;
+			ui.horizontal(|ui| {
+			    separated_mono!(ui, name);
+			    if !processing_split {
+				let ts = self.timestamp().expanded();
+				ts.show(ui, 16.0, 8.0);
+				if data.is_done() {
+				    processing_split = true;
+				}
+			    }
+			});
+		    }
 		});
 	    });
 	});
