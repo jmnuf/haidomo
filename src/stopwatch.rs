@@ -169,6 +169,11 @@ impl Stopwatch {
 	}
     }
 
+    pub fn clear(&mut self) {
+	self.start_time = None;
+	self.elapsed = zero_dur();
+    }
+
     pub fn update_start_time(&mut self) -> Duration {
 	let split_time = self.time_elapsed();
 	if let Some(_) = self.start_time {
@@ -189,14 +194,14 @@ impl egui::Widget for Stopwatch {
 
 
 pub struct StopSplit {
-    split_start: Duration,
+    split_start: Option<Duration>,
     elapsed: Duration,
     completed: bool,
 }
 impl StopSplit {
     pub fn new() -> Self {
 	Self {
-	    split_start: zero_dur(),
+	    split_start: None,
 	    elapsed: zero_dur(),
 	    completed: false,
 	}
@@ -205,32 +210,87 @@ impl StopSplit {
     pub fn new_started(sw: &Stopwatch) -> Self {
 	let split_start = sw.time_elapsed();
 	Self {
-	    split_start: split_start,
+	    split_start: Some(split_start),
 	    elapsed: zero_dur(),
 	    completed: false,
 	}
     }
 
+    pub fn not_started(&self) -> bool {
+	self.split_start.is_none()
+    }
+
     pub fn is_done(&self) -> bool {
-	self.completed
+	!self.not_started() && self.completed
     }
 
     pub fn time_elapsed(&self, sw: &Stopwatch) -> Duration {
+	// Not started split just returns zero
+	if self.not_started() {
+	    return zero_dur();
+	}
 	if self.completed {
 	    return self.elapsed;
 	}
-	let elapsed = sw.time_elapsed() - self.split_start;
+	let elapsed = sw.time_elapsed() - self.split_start.unwrap();
 	return elapsed;
     }
 
-    pub fn toggle_split(&mut self, sw: &Stopwatch) {
-	if self.completed {
-	    self.completed = false;
-	} else {
-	    let elapsed = sw.time_elapsed() - self.split_start;
+    pub fn start(&mut self, sw: &Stopwatch) {
+	if ! self.not_started() {
+	    return;
+	}
+	if self.is_done() {
+	    return;
+	}
+	self.elapsed = zero_dur();
+	self.split_start = Some(sw.time_elapsed());
+    }
+
+    pub fn start_at_zero(&mut self) {
+	if ! self.not_started() {
+	    return;
+	}
+	if self.is_done() {
+	    return;
+	}
+	self.elapsed = zero_dur();
+	self.split_start = Some(zero_dur());
+    }
+
+    pub fn stop(&mut self, sw: &Stopwatch) {
+	if !self.not_started() {
+	    let elapsed = sw.time_elapsed() - self.split_start.unwrap();
 	    self.elapsed = elapsed;
 	    self.completed = true;
 	}
+    }
+
+    pub fn resume(&mut self) {
+	if !self.not_started() {
+	    self.completed = false;
+	}
+    }
+
+    pub fn toggle_split(&mut self, sw: &Stopwatch) {
+	if self.not_started() {
+	    self.start(sw);
+	} else if self.completed {
+	    self.resume();
+	} else {
+	    self.stop(sw);
+	}
+    }
+
+    pub fn clear(&mut self) {
+	self.split_start = None;
+	self.elapsed = zero_dur();
+	self.completed = false;
+    }
+
+    pub fn show(&self, ui: &mut egui::Ui, sw: &Stopwatch) {
+	let elapsed:ExpandedTimestamp = self.time_elapsed(sw).into();
+	elapsed.show(ui, 16.0, 10.0);
     }
 }
 

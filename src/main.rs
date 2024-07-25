@@ -55,6 +55,7 @@ fn main() -> Result<(), eframe::Error> {
 struct HaiDomoApp {
     stopwatch: Stopwatch,
     splits: Vec<(String, StopSplit)>,
+    at: usize,
 }
 
 impl HaiDomoApp {
@@ -63,6 +64,7 @@ impl HaiDomoApp {
 	Self {
 	    stopwatch: Stopwatch::new(),
 	    splits: Vec::new(),
+	    at: 0,
 	}
     }
 
@@ -71,6 +73,7 @@ impl HaiDomoApp {
 	Self {
 	    stopwatch: stopwatch,
 	    splits: splits,
+	    at: 0,
 	}
     }
 
@@ -83,6 +86,55 @@ impl HaiDomoApp {
     fn timestamp(&self) -> Timestamp {
 	self.stopwatch.timestamp()
     }
+
+    fn is_started(&self) -> bool {
+	self.stopwatch.is_running()
+	    || !self.stopwatch.time_elapsed().is_zero()
+    }
+
+    fn is_timer_running(&self) -> bool {
+	self.stopwatch.is_running()
+    }
+
+    fn start_timer(&mut self) {
+	self.stopwatch.clear();
+	for s in self.splits.iter_mut() {
+	    let split = &mut s.1;
+	    split.clear();
+	}
+	self.stopwatch.start();
+	if self.splits.len() >= 1 {
+	    let s = &mut self.splits[0];
+	    let split = &mut s.1;
+	    split.start_at_zero();
+	}
+    }
+
+    fn stop_timer(&mut self) {
+	self.stopwatch.pause();
+	if self.splits.is_empty() {
+	    return;
+	}
+	for s in self.splits.iter_mut() {
+	    let split = &mut s.1;
+	    if !split.is_done() {
+		split.stop(&self.stopwatch);
+	    }
+	}
+    }
+
+    fn next_split(&mut self) {
+	self.at += 1;
+	if self.at >= self.splits.len() {
+	    self.stop_timer();
+	    return;
+	}
+
+	let prev = &mut self.splits.get_mut(self.at - 1).unwrap().1;
+	prev.stop(&self.stopwatch);
+	let next = &mut self.splits.get_mut(self.at).unwrap().1;
+	next.start(&self.stopwatch);
+    }
 }
 
 impl eframe::App for HaiDomoApp {
@@ -94,6 +146,7 @@ impl eframe::App for HaiDomoApp {
 
 	egui::TopBottomPanel::top("run_title").show(ctx, |ui| {
 	    ui.heading("Ur Mom");
+	    ui.label("Any%");
 	});
 	
 	egui::CentralPanel::default().show(ctx, |ui| {
@@ -103,19 +156,12 @@ impl eframe::App for HaiDomoApp {
 		let max_rect = ui.max_rect();
 		ui.set_width(max_rect.width());
 		ui.vertical_centered_justified(|ui| {
-		    let mut processing_split = false;
 		    for s in self.splits.iter() {
-			let name = s.0.clone();
+			let name = &s.0;
 			let data = &s.1;
 			ui.horizontal(|ui| {
 			    separated_mono!(ui, name);
-			    if !processing_split {
-				let ts = self.timestamp().expanded();
-				ts.show(ui, 16.0, 8.0);
-				if data.is_done() {
-				    processing_split = true;
-				}
-			    }
+			    data.show(ui, &self.stopwatch);
 			});
 		    }
 		});
@@ -129,14 +175,18 @@ impl eframe::App for HaiDomoApp {
 		    .inner_margin(4.0)
 	    }).show(ctx, |ui| {
 		timestamp.show(ui, 64.0, 32.0);
-
+		
 		if ui.input(|i| i.key_pressed(egui::Key::Space)) {
-		    if self.stopwatch.toggle() {
+		    if !self.is_started() {
+			self.start_timer();
+		    } else if self.stopwatch.toggle() {
 			println!("[INFO] Stopwatch has been turned on");
 			ctx.request_repaint();
 		    } else {
 			println!("[INFO] Stopwatch has been turned off");
 		    }
+		} else if ui.input(|i| i.key_pressed(egui::Key::S)) {
+		    self.next_split();
 		}
 	    });
     }
