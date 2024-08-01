@@ -115,203 +115,214 @@ impl RunData {
     }
 }
 
+
 #[cfg(test)]
-#[test]
-fn test_serialize_splits() {
-    let expected_header: Vec<u8> = vec![
-        // Version Number
-        VERSION, // Run Name length
-        0b00000100, // 4
-        // UTF-8 Characters
-        0b01110100, // 't'
-        0b01100101, // 'e'
-        0b01110011, // 's'
-        0b01110100, // 't'
-    ];
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn serialize_splits() {
+	let expected_header: Vec<u8> = vec![
+            // Version Number
+            VERSION, // Run Name length
+            0b00000100, // 4
+            // UTF-8 Characters
+            0b01110100, // 't'
+            0b01100101, // 'e'
+            0b01110011, // 's'
+            0b01110100, // 't'
+	];
 
-    let expected_splits: Vec<u8> = vec![
-        // Splits Count: 3
-        0b00000011, // Split 1
-        // Split Name Length
-        0b00000010, // 2
-        // UTF-8 Characters
-        0b01010011, // 'S'
-        0b00110001, // '1'
-        // Split 2
-        // Split Name Length
-        0b00000010, // 2
-        // UTF-8 Characters
-        0b01010011, // 'S'
-        0b00110010, // '2'
-        // Split 3
-        // Split Name Length
-        0b00000010, // 2
-        // UTF-8 Characters
-        0b01010011, // 'S'
-        0b00110011, // '3'
-    ];
+	let expected_splits: Vec<u8> = vec![
+            // Splits Count: 3
+            0b00000011, // Split 1
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110001, // '1'
+            // Split 2
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110010, // '2'
+            // Split 3
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110011, // '3'
+	];
 
-    let expected_attempts: Vec<u8> = vec![
-        // Attempts Count
-        0b00000001, // 1
-        // Attempt 1 seconds duration: 9
-        0b00001001, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-        0b00000000, // Attempt 1 fractional nanos duration: 700,000,000
-        0b00000000, 0b00100111, 0b10111001, 0b00101001,
-        // Attempt 1 splits used
-        0b00000011, // 3
-        // Attempt 1 Split 1 duration as f64: 3.21
-        0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b10101110, 0b00001001,
-        0b01000000, // Attempt 1 Split 2 duration as f64: 3.23
-        0b11010111, 0b10100011, 0b01110000, 0b00111101, 0b00001010, 0b11010111, 0b00001001,
-        0b01000000, // Attempt 1 Split 3 duration as f64: 3.26
-        0b00010100, 0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b00001010,
-        0b01000000,
-    ];
+	// TODO: Make it so I don't have to specify the bytes manually for the duration numbers to be able to test for multiple attempts
+	let expected_attempts: Vec<u8> = vec![
+            // Attempts Count
+            0b00000001, // 1
+            // Attempt 1 seconds duration: 9
+            0b00001001, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+            0b00000000, // Attempt 1 fractional nanos duration: 700,000,000
+            0b00000000, 0b00100111, 0b10111001, 0b00101001,
+            // Attempt 1 splits used
+            0b00000011, // 3
+            // Attempt 1 Split 1 duration as f64: 3.21
+            0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b10101110, 0b00001001,
+            0b01000000, // Attempt 1 Split 2 duration as f64: 3.23
+            0b11010111, 0b10100011, 0b01110000, 0b00111101, 0b00001010, 0b11010111, 0b00001001,
+            0b01000000, // Attempt 1 Split 3 duration as f64: 3.26
+            0b00010100, 0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b00001010,
+            0b01000000,
+	];
 
-    // Generate the run data
-    let mut rund = RunData::new(
-        String::from("test"),
-        vec!["S1".to_string(), "S2".to_string(), "S3".to_string()],
-    );
-    rund.add_attempt(vec![
-        Duration::from_secs_f64(3.21),
-        Duration::from_secs_f64(3.23),
-        Duration::from_secs_f64(3.26),
-    ]);
+	// Generate the run data
+	let mut rund = RunData::new(
+            String::from("test"),
+            vec!["S1".to_string(), "S2".to_string(), "S3".to_string()],
+	);
+	rund.add_attempt(vec![
+            Duration::from_secs_f64(3.21),
+            Duration::from_secs_f64(3.23),
+            Duration::from_secs_f64(3.26),
+	]);
 
-    let result = rund
-        .as_bytes()
-        .expect("Should be able to transform test run data to bytes without problems");
-    let mut res_idx = 0;
-    let res_len = result.len();
+	let result = rund
+            .as_bytes()
+            .expect("Should be able to transform test run data to bytes without problems");
+	let mut res_idx = 0;
+	let res_len = result.len();
 
-    // Test Header section
-    // TODO: Expand it to how the Attempts section is for easier understanding
-    assert!(
-        res_len > expected_header.len(),
-        "Generated header section is too small! Expected {} but got {}",
-        expected_header.len(),
-        res_len - res_idx
-    );
-    let section = &result[res_idx..expected_header.len()];
-    assert_eq!(
-        &expected_header, section,
-        "The generated header section (right) doesn't match with the expected header (left)!"
-    );
-    res_idx += expected_header.len();
+	// Test Header section
+	// TODO: Expand it to how the Attempts section is for easier understanding
+	assert!(
+            res_len > expected_header.len(),
+            "Generated header section is too small! Expected {} but got {}",
+            expected_header.len(),
+            res_len - res_idx
+	);
+	let section = &result[res_idx..expected_header.len()];
+	assert_eq!(
+            &expected_header, section,
+            "The generated header section (right) doesn't match with the expected header (left)!"
+	);
+	res_idx += expected_header.len();
 
-    // Test Splits section
-    // TODO> Expand it to how the Attempts section is for easier understanding
-    assert!(
-        res_len - res_idx > expected_splits.len(),
-        "Generated splits section is too small! Expected {} but got {}",
-        expected_splits.len(),
-        res_len - res_idx
-    );
-    let section = &result[res_idx..(res_idx + expected_splits.len())];
-    assert_eq!(
-        &expected_splits, section,
-        "The generated splits section (right) doesn't match with the expected splits (left)!"
-    );
-    res_idx += expected_splits.len();
+	// Test Splits section
+	// TODO> Expand it to how the Attempts section is for easier understanding
+	assert!(
+            res_len - res_idx > expected_splits.len(),
+            "Generated splits section is too small! Expected {} but got {}",
+            expected_splits.len(),
+            res_len - res_idx
+	);
+	let section = &result[res_idx..(res_idx + expected_splits.len())];
+	assert_eq!(
+            &expected_splits, section,
+            "The generated splits section (right) doesn't match with the expected splits (left)!"
+	);
+	res_idx += expected_splits.len();
 
-    // Test Attempts section
-    // God save me I spent too much time here because I misstyped 2 bits in the expected data :'v
-    assert!(
-        res_len - res_idx >= expected_attempts.len(),
-        "Generated attempts section is too small! Expected {} but got {}",
-        expected_attempts.len(),
-        res_len - res_idx
-    );
+	// Test Attempts section
+	// God save me I spent too much time here because I misstyped 2 bits in the expected data :'v
+	assert!(
+            res_len - res_idx >= expected_attempts.len(),
+            "Generated attempts section is too small! Expected {} but got {}",
+            expected_attempts.len(),
+            res_len - res_idx
+	);
 
-    let got = u8::from_le(*result.iter().skip(res_idx).take(1).collect::<Vec<&u8>>()[0]);
-    let exp = u8::from_le(expected_attempts[0]);
-    assert_eq!(
-        exp, got,
-        "Attempts count is expected to be {exp} ({exp:#010b}) but got {got} ({got:#010b})"
-    );
+	let got = u8::from_le(*result.iter().skip(res_idx).take(1).collect::<Vec<&u8>>()[0]);
+	let exp = u8::from_le(expected_attempts[0]);
+	assert_eq!(
+            exp, got,
+            "Attempts count is expected to be {exp} ({exp:#010b}) but got {got} ({got:#010b})"
+	);
 
-    let mut offset = 1usize;
-    let got = u64::from_le_bytes({
-        let v: Vec<u8> = result
-            .iter()
-            .skip(res_idx + offset)
-            .take(8)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 8] = v.try_into().expect("Should be able to create a [u8; 8]");
-        v
-    });
-    let exp = u64::from_le_bytes({
-        let v: Vec<u8> = expected_attempts
-            .iter()
-            .skip(offset)
-            .take(8)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 8] = v.try_into().expect("Should be able to create a [u8; 8]");
-        v
-    });
-    assert_eq!(exp, got, "Attempt total duration seconds expected to be {exp} ({exp:#066b}) but got {got} ({got:#066b})");
+	let mut offset = 1usize;
+	let got = u64::from_le_bytes({
+            let v: Vec<u8> = result
+		.iter()
+		.skip(res_idx + offset)
+		.take(8)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 8] = v.try_into().expect("Should be able to create a [u8; 8]");
+            v
+	});
+	let exp = u64::from_le_bytes({
+            let v: Vec<u8> = expected_attempts
+		.iter()
+		.skip(offset)
+		.take(8)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 8] = v.try_into().expect("Should be able to create a [u8; 8]");
+            v
+	});
+	assert_eq!(exp, got, "Attempt total duration seconds expected to be {exp} ({exp:#066b}) but got {got} ({got:#066b})");
 
-    offset += 8;
-    let got = u32::from_le_bytes({
-        let v: Vec<u8> = result
-            .iter()
-            .skip(res_idx + offset)
-            .take(4)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 4] = v.try_into().expect("Should be able to create a [u8;4]");
-        v
-    });
-    let exp = u32::from_le_bytes({
-        let v: Vec<u8> = expected_attempts
-            .iter()
-            .skip(offset)
-            .take(4)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 4] = v.try_into().expect("Should be able to create a [u8; 4]");
-        v
-    });
-    assert_eq!(exp, got, "Attempt total duration nanos subsec expected to be {exp} ({exp:#034b}) but got {got} ({got:#034b})");
+	offset += 8;
+	let got = u32::from_le_bytes({
+            let v: Vec<u8> = result
+		.iter()
+		.skip(res_idx + offset)
+		.take(4)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 4] = v.try_into().expect("Should be able to create a [u8;4]");
+            v
+	});
+	let exp = u32::from_le_bytes({
+            let v: Vec<u8> = expected_attempts
+		.iter()
+		.skip(offset)
+		.take(4)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 4] = v.try_into().expect("Should be able to create a [u8; 4]");
+            v
+	});
+	assert_eq!(exp, got, "Attempt total duration nanos subsec expected to be {exp} ({exp:#034b}) but got {got} ({got:#034b})");
 
-    offset += 4;
-    let got = u8::from_le({
-        let v: Vec<u8> = result
-            .iter()
-            .skip(res_idx + offset)
-            .take(1)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 1] = v.try_into().expect("Should be able to create a [u8; 1]");
-        v[0]
-    });
-    let exp = u8::from_le({
-        let v: Vec<u8> = expected_attempts
-            .iter()
-            .skip(offset)
-            .take(1)
-            .map(|x| *x)
-            .collect();
-        let v: [u8; 1] = v.try_into().expect("Should be able to create a [u8; 1]");
-        v[0]
-    });
-    assert_eq!(exp, got, "Expected attempt's splits used area to be equal to: {exp} ({exp:#010b}) but got {got} ({got:#010b})");
+	offset += 4;
+	let got = u8::from_le({
+            let v: Vec<u8> = result
+		.iter()
+		.skip(res_idx + offset)
+		.take(1)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 1] = v.try_into().expect("Should be able to create a [u8; 1]");
+            v[0]
+	});
+	let exp = u8::from_le({
+            let v: Vec<u8> = expected_attempts
+		.iter()
+		.skip(offset)
+		.take(1)
+		.map(|x| *x)
+		.collect();
+            let v: [u8; 1] = v.try_into().expect("Should be able to create a [u8; 1]");
+            v[0]
+	});
+	assert_eq!(exp, got, "Expected attempt's splits used area to be equal to: {exp} ({exp:#010b}) but got {got} ({got:#010b})");
 
-    let section = &result[res_idx..(res_idx + expected_attempts.len())];
-    assert_eq!(
-        &expected_attempts, section,
-        "The generated attempts section (right) doesn't match with the expected attempts (left)!"
-    );
-    res_idx += expected_attempts.len();
+	let section = &result[res_idx..(res_idx + expected_attempts.len())];
+	assert_eq!(
+            &expected_attempts, section,
+            "The generated attempts section (right) doesn't match with the expected attempts (left)!"
+	);
+	res_idx += expected_attempts.len();
 
-    assert_eq!(
-        res_idx,
-        result.len(),
-        "Generated extra bytes: {:?}",
-        result.iter().skip(res_idx).collect::<Vec<&u8>>()
-    );
+	assert_eq!(
+            res_idx,
+            result.len(),
+            "Generated extra bytes: {:?}",
+            result.iter().skip(res_idx).collect::<Vec<&u8>>()
+	);
+    }
+
+    // TODO: Feature not implemented
+    // #[test]
+    // fn read_serialized_data() {
+    // }
 }
