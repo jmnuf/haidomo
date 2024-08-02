@@ -25,6 +25,7 @@ macro_rules! push_str_bytes {
 }
 
 const VERSION: u8 = 0b00000000;
+const SIGNATURE: [u8; 4] = [b'b', b's', b's', 69];
 
 struct RunData {
     version: u8,
@@ -62,6 +63,10 @@ impl RunData {
 
     pub fn as_bytes(&self) -> Result<Vec<u8>, String> {
         let mut bytes = Vec::new();
+
+	for b in &SIGNATURE {
+	    bytes.push(*b);
+	}
 
         bytes.push(self.version);
 
@@ -123,6 +128,11 @@ mod tests {
     #[test]
     fn serialize_splits() {
 	let expected_header: Vec<u8> = vec![
+	    // File Signature
+	    SIGNATURE[0],
+	    SIGNATURE[1],
+	    SIGNATURE[2],
+	    SIGNATURE[3],
             // Version Number
             VERSION, // Run Name length
             0b00000100, // 4
