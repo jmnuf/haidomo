@@ -321,6 +321,60 @@ mod tests {
 	);
     }
 
+    #[test]
+    fn write() {
+	let contents: Vec<u8> = vec![
+            // Version Number
+            VERSION, // Run Name length
+            0b00000100, // 4
+            // UTF-8 Characters
+            0b01110100, // 't'
+            0b01100101, // 'e'
+            0b01110011, // 's'
+            0b01110100, // 't'
+
+            // Splits Count: 3
+            0b00000011, // Split 1
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110001, // '1'
+            // Split 2
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110010, // '2'
+            // Split 3
+            // Split Name Length
+            0b00000010, // 2
+            // UTF-8 Characters
+            0b01010011, // 'S'
+            0b00110011, // '3'
+	    
+            // Attempts Count
+            0b00000001, // 1
+            // Attempt 1 seconds duration: 9
+            0b00001001, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+            0b00000000, // Attempt 1 fractional nanos duration: 700,000,000
+            0b00000000, 0b00100111, 0b10111001, 0b00101001,
+            // Attempt 1 splits used
+            0b00000011, // 3
+            // Attempt 1 Split 1 duration as f64: 3.21
+            0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b10101110, 0b00001001,
+            0b01000000, // Attempt 1 Split 2 duration as f64: 3.23
+            0b11010111, 0b10100011, 0b01110000, 0b00111101, 0b00001010, 0b11010111, 0b00001001,
+            0b01000000, // Attempt 1 Split 3 duration as f64: 3.26
+            0b00010100, 0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b00001010,
+            0b01000000,
+	];
+
+	let mut f = std::fs::File::create("foo.bss").unwrap();
+	f.write_all(&contents).expect("Expected to manage to write all the buffer onto the file");
+	f.flush().expect("Expected to be able to flush file after write");
+    }
+
     // TODO: Feature not implemented
     // #[test]
     // fn read_serialized_data() {
