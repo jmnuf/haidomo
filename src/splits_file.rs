@@ -23,16 +23,39 @@ macro_rules! push_str_bytes {
         }
     };
 }
+macro_rules! read_str_bytes {
+    ($bytes: expr, $offset: expr, $str_len: expr) => {
+	{
+	    let mut string = String::with_capacity($str_len);
+	    for b in $bytes.iter().skip($offset).take($str_len).map(|x| *x) {
+		string.push(char::from(b));
+	    }
+	    string
+	}
+    }
+}
 
 const VERSION: u8 = 0b00000000;
 const SIGNATURE: [u8; 4] = [b'b', b's', b's', 69];
 
+#[derive(Debug)]
+enum ParseErr {
+    InvalidHeaderLength,
+    InvalidSignature,
+    InvalidRunName,
+    UnknownVersion,
+    InvalidSplitsChunk,
+    InvalidAttemptsChunk,
+}
+
+#[derive(Debug)]
 struct RunData {
     version: u8,
     name: String,
     splits: Vec<String>,
     attempts: Vec<AttemptData>,
 }
+#[derive(Debug)]
 struct AttemptData {
     total_duration: Duration,
     split_times: Vec<f64>,
@@ -46,6 +69,118 @@ impl RunData {
             splits: splits_names,
             attempts: vec![],
         }
+    }
+
+    pub fn from_bytes(content: Vec<u8>) -> Result<Self, ParseErr> {
+	let content_len = content.len();
+	// 4 from signature + 1 from version + 1 from name length
+	if content_len < 6 {
+	    return Err(ParseErr::InvalidHeaderLength);
+	}
+	let mut offset = 0usize;
+	for sb in SIGNATURE.iter() {
+	    if &content[offset] != sb {
+		return Err(ParseErr::InvalidSignature);
+	    }
+	    offset += 1;
+	}
+	let version:u8 = *(&content[offset]);
+	if version > VERSION {
+	    return Err(ParseErr::UnknownVersion);
+	}
+	offset += 1;
+
+	let name_len = *(&content[offset]) as usize;
+	if name_len == 0 {
+	    return Err(ParseErr::InvalidRunName);
+	}
+	if content_len - offset < name_len {
+	    return Err(ParseErr::InvalidHeaderLength);
+	}
+	offset += 1;
+	
+	let name = read_str_bytes!(content, offset, name_len);
+	offset += name_len;
+
+	if content_len - offset <= 2 { // 1 for splits count + 1 for first split length or attempts count
+	    return Err(ParseErr::InvalidSplitsChunk);
+	}
+	let chunk_len = *(&content[offset]) as usize;
+	let mut splits = Vec::with_capacity(chunk_len);
+	offset += 1;
+	for _ in 0..chunk_len {
+	    let split_name_len = *(&content[offset]) as usize;
+	    offset += 1;
+	    if content_len - offset < split_name_len {
+		return Err(ParseErr::InvalidSplitsChunk);
+	    }
+	    let split_name = read_str_bytes!(content, offset, split_name_len);
+	    offset += split_name_len;
+	    splits.push(split_name);
+	}
+
+	if content_len - offset == 0 {
+	    return Err(ParseErr::InvalidAttemptsChunk);
+	}
+	let chunk_len = *(&content[offset]) as usize;
+	let mut attempts = Vec::with_capacity(chunk_len);
+	offset += 1;
+	for _ in 0..chunk_len {
+	    if content_len - offset < 13 { // 8 for u64 seconds + 4 for u32 nanos + 1 for splits used u8
+		return Err(ParseErr::InvalidAttemptsChunk);
+	    }
+	    let seconds = u64::from_le_bytes({
+		let v: Vec<u8> = content.iter()
+		    .skip(offset)
+		    .take(8)
+		    .map(|x| *x)
+		    .collect();
+		v.try_into().expect("Should be able to turn Vec into [u8; 8] for u64")
+	    });
+	    offset += 8;
+	    let nanos = u32::from_le_bytes({
+		let v: Vec<u8> = content.iter()
+		    .skip(offset)
+		    .take(4)
+		    .map(|x| *x)
+		    .collect();
+		v.try_into().expect("Should be able to turn Vec into [u8; 4] for u32")
+	    });
+	    offset += 4;
+	    let splits_used_count = *(&content[offset]) as usize;
+	    offset += 1;
+	    if splits_used_count == 0 {
+		continue;
+	    }
+	    if content_len - offset < 8 * splits_used_count {
+		return Err(ParseErr::InvalidAttemptsChunk);
+	    }
+	    let mut split_times = Vec::with_capacity(splits_used_count);
+	    for _ in 0..splits_used_count {
+		let seconds = f64::from_le_bytes({
+		    let v: Vec<u8> = content.iter()
+			.skip(offset)
+			.take(8)
+			.map(|x| *x)
+			.collect();
+		    v.try_into().expect("Should be able to turn Vec into [u8; 8] for f64")
+		});
+		offset += 8;
+		split_times.push(seconds);
+	    }
+
+	    attempts.push(AttemptData {
+		total_duration: Duration::new(seconds, nanos),
+		split_times: split_times,
+	    });
+	}
+ 
+	Ok(Self {
+	    version: version,
+	    name: name,
+	    splits: splits,
+	    attempts: attempts,
+	})
     }
 
     pub fn add_attempt(&mut self, split_durations: Vec<Duration>) {
@@ -332,61 +467,55 @@ mod tests {
     }
 
     #[test]
-    fn write() {
-	let contents: Vec<u8> = vec![
-            // Version Number
-            VERSION, // Run Name length
-            0b00000100, // 4
-            // UTF-8 Characters
-            0b01110100, // 't'
-            0b01100101, // 'e'
-            0b01110011, // 's'
-            0b01110100, // 't'
+    fn read_serialized_data() {
+	let exp_run = {
+	    let mut rund = RunData::new("test".into(), vec!["S1".into(), "S2".into(), "S3".into()]);
+	    rund.add_attempt(vec![
+		Duration::from_secs_f64(3.21),
+		Duration::from_secs_f64(3.23),
+		Duration::from_secs_f64(3.26),
+	    ]);
+	    rund
+	};
+	let content = exp_run.as_bytes().expect("Expected to be able to create bytes from test run data struct");
+	// {
+	//     let mut f = std::fs::File::create("foo.bss").unwrap();
+	//     f.write_all(&content).expect("Expected to manage to write all the buffer onto the file");
+	//     f.flush().expect("Expected to be able to flush file after write");
+	// }
 
-            // Splits Count: 3
-            0b00000011, // Split 1
-            // Split Name Length
-            0b00000010, // 2
-            // UTF-8 Characters
-            0b01010011, // 'S'
-            0b00110001, // '1'
-            // Split 2
-            // Split Name Length
-            0b00000010, // 2
-            // UTF-8 Characters
-            0b01010011, // 'S'
-            0b00110010, // '2'
-            // Split 3
-            // Split Name Length
-            0b00000010, // 2
-            // UTF-8 Characters
-            0b01010011, // 'S'
-            0b00110011, // '3'
-	    
-            // Attempts Count
-            0b00000001, // 1
-            // Attempt 1 seconds duration: 9
-            0b00001001, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-            0b00000000, // Attempt 1 fractional nanos duration: 700,000,000
-            0b00000000, 0b00100111, 0b10111001, 0b00101001,
-            // Attempt 1 splits used
-            0b00000011, // 3
-            // Attempt 1 Split 1 duration as f64: 3.21
-            0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b10101110, 0b00001001,
-            0b01000000, // Attempt 1 Split 2 duration as f64: 3.23
-            0b11010111, 0b10100011, 0b01110000, 0b00111101, 0b00001010, 0b11010111, 0b00001001,
-            0b01000000, // Attempt 1 Split 3 duration as f64: 3.26
-            0b00010100, 0b10101110, 0b01000111, 0b11100001, 0b01111010, 0b00010100, 0b00001010,
-            0b01000000,
-	];
+	let got_run = RunData::from_bytes(content.clone()).expect("Expected no issues when parsing bytes");
 
-	let mut f = std::fs::File::create("foo.bss").unwrap();
-	f.write_all(&contents).expect("Expected to manage to write all the buffer onto the file");
-	f.flush().expect("Expected to be able to flush file after write");
+	assert_eq!(exp_run.version, got_run.version, "Expected (left) to read version number {} but read number {}", exp_run.version, got_run.version);
+	assert_eq!(exp_run.name, got_run.name, "Expected (left) to read name as {:?} but read string {:?}", exp_run.name, got_run.name);
+
+	let exp_count = exp_run.splits.len();
+	let got_count = got_run.splits.len();
+	assert_eq!(exp_count, got_count, "Expected (left) to find {exp_count} splits but only found {got_count}");
+	for i in 0..exp_count {
+	    let exp_name = &exp_run.splits[i];
+	    let got_name = &got_run.splits[i];
+	    assert_eq!(exp_name, got_name, "Expected (left) split {i} to be named {exp_name} but it is named {got_name}");
+	}
+
+	let exp_count = exp_run.attempts.len();
+	let got_count = got_run.attempts.len();
+	assert_eq!(exp_count, got_count, "Expected (left) to find {exp_count} attempts but only found {got_count}");
+	for i in 0..exp_count {
+	    let exp_attempt = &exp_run.attempts[i];
+	    let got_attempt = &got_run.attempts[i];
+	    assert_eq!(
+		exp_attempt.total_duration,
+		got_attempt.total_duration,
+		"Expected (left) attempt {i} to have a total duration of {:?} but it has a total duration of {:?}",
+		exp_attempt.total_duration,
+		got_attempt.total_duration
+	    );
+	    assert_eq!(
+		exp_attempt.split_times,
+		got_attempt.split_times,
+		"Expected (left) attempt {i} to have the specified split times as seconds f64"
+	    );
+	}
     }
-
-    // TODO: Feature not implemented
-    // #[test]
-    // fn read_serialized_data() {
-    // }
 }
