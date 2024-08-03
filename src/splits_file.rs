@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::time::Duration;
 
 macro_rules! len_is_u8 {
@@ -37,13 +36,29 @@ const VERSION: u8 = 0b00000000;
 const SIGNATURE: [u8; 4] = [b'b', b's', b's', 69];
 
 #[derive(Debug)]
-enum ParseErr {
+pub enum ParseErr {
     InvalidHeaderLength,
     InvalidSignature,
     InvalidRunName,
     UnknownVersion,
     InvalidSplitsChunk,
     InvalidAttemptsChunk,
+}
+#[derive(Debug)]
+pub enum RunDataFileError {
+    IOError(std::io::Error),
+    ParseError(ParseErr),
+    ByteGenError(String), // TODO: replace the string for an actual enum
+}
+impl From<std::io::Error> for RunDataFileError {
+    fn from(err: std::io::Error) -> Self {
+        RunDataFileError::IOError(err)
+    }
+}
+impl From<ParseErr> for RunDataFileError {
+    fn from(err: ParseErr) -> Self {
+        RunDataFileError::ParseError(err)
+    }
 }
 
 #[derive(Debug)]
@@ -67,6 +82,13 @@ impl RunData {
             splits: splits_names,
             attempts: vec![],
         }
+    }
+
+    pub fn read_from<T: std::io::Read>(reader: &mut T) -> Result<Self, RunDataFileError> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let rund = RunData::from_bytes(buf)?;
+        Ok(rund)
     }
 
     pub fn from_bytes(content: Vec<u8>) -> Result<Self, ParseErr> {
@@ -185,6 +207,16 @@ impl RunData {
             total_duration: total_duration,
             split_times: split_times,
         });
+    }
+
+    pub fn write_to<T: std::io::Write>(&self, writer: &mut T) -> Result<(), RunDataFileError> {
+        match self.as_bytes() {
+            Err(msg) => Err(RunDataFileError::ByteGenError(msg)),
+            Ok(bytes) => {
+                writer.write_all(&bytes)?;
+                Ok(())
+            }
+        }
     }
 
     pub fn as_bytes(&self) -> Result<Vec<u8>, String> {
