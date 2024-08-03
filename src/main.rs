@@ -1,6 +1,8 @@
 mod stopwatch;
 use stopwatch::*;
 
+mod splits_file;
+
 use eframe::egui;
 use eframe::egui::Widget;
 use std::fmt::Display;
