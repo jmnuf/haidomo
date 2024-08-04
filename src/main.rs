@@ -2,6 +2,7 @@ mod stopwatch;
 use stopwatch::*;
 
 mod splits_file;
+use splits_file::RunData;
 
 use eframe::egui;
 use eframe::egui::Widget;
@@ -42,29 +43,34 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|cc| {
             let sw = Stopwatch::new();
             let mut splits = Vec::new();
+            let mut split_names = Vec::new();
             for i in 1..4 {
                 let name = format!("Split-{:02}", i);
                 let data = StopSplit::new();
-                let split = (name, data);
+                let split = (i, data);
                 splits.push(split);
+                split_names.push(name);
             }
-            Box::new(HaiDomoApp::new_with_splits(cc, sw, splits))
+            let run_data = RunData::new(String::from("UrMom"), split_names);
+            Box::new(HaiDomoApp::new_with_splits(cc, sw, run_data))
         }),
     )
 }
 
 struct HaiDomoApp {
     stopwatch: Stopwatch,
-    splits: Vec<(String, StopSplit)>,
+    splits: Vec<(usize, StopSplit)>,
+    run_data: RunData,
     at: usize,
 }
 
 impl HaiDomoApp {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>, run_name: String) -> Self {
         println!("[INFO] Creating HaiDomoApp...");
         Self {
             stopwatch: Stopwatch::new(),
             splits: Vec::new(),
+            run_data: RunData::new(run_name, vec![]),
             at: 0,
         }
     }
@@ -72,20 +78,37 @@ impl HaiDomoApp {
     fn new_with_splits(
         _cc: &eframe::CreationContext<'_>,
         stopwatch: Stopwatch,
-        splits: Vec<(String, StopSplit)>,
+        run_data: RunData,
     ) -> Self {
+        let splits: Vec<_> = run_data
+            .get_indexed_split_names()
+            .iter()
+            .map(|(idx, _)| (*idx, StopSplit::new()))
+            .collect();
         println!("[INFO] Creating HaiDomoApp with {} splits...", splits.len());
         Self {
             stopwatch: stopwatch,
             splits: splits,
+            run_data: run_data,
             at: 0,
         }
     }
 
     fn add_split(&mut self, name: String) {
-        let data = StopSplit::new();
-        let split = (name, data);
-        self.splits.push(split);
+        match self.run_data.add_split(name) {
+            Ok(i) => {
+                let data = StopSplit::new();
+                let split = (i, data);
+                self.splits.push(split);
+            }
+            Err(_) => {
+                eprintln!("[ERROR] Failed to add new split! Max splits reached already?");
+            }
+        };
+    }
+
+    fn get_split_name(&self, idx: usize) -> Option<&String> {
+        self.run_data.get_split_name(idx)
     }
 
     fn timestamp(&self) -> Timestamp {
@@ -161,7 +184,7 @@ impl eframe::App for HaiDomoApp {
                 ui.set_width(max_rect.width());
                 ui.vertical_centered_justified(|ui| {
                     for s in self.splits.iter() {
-                        let name = &s.0;
+                        let name = self.get_split_name(*&s.0).unwrap();
                         let data = &s.1;
                         ui.horizontal(|ui| {
                             // Display: $name | split-data

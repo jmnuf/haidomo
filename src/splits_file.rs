@@ -62,7 +62,7 @@ impl From<ParseErr> for RunDataFileError {
 }
 
 #[derive(Debug)]
-struct RunData {
+pub struct RunData {
     version: u8,
     name: String,
     splits: Vec<String>,
@@ -82,6 +82,29 @@ impl RunData {
             splits: splits_names,
             attempts: vec![],
         }
+    }
+
+    pub fn add_split(&mut self, split_name: String) -> Result<usize, ()> {
+        const MAX_SPLITS: usize = u8::MAX as usize;
+        if self.splits.len() > MAX_SPLITS {
+            return Err(());
+        }
+        self.splits.push(split_name);
+        let index = self.splits.len();
+        return Ok(index);
+    }
+
+    pub fn get_indexed_split_names(&self) -> Vec<(usize, String)> {
+        return self
+            .splits
+            .iter()
+            .enumerate()
+            .map(|(i, x)| (i, x.clone()))
+            .collect();
+    }
+
+    pub fn get_split_name(&self, index: usize) -> Option<&String> {
+        self.splits.get(index)
     }
 
     pub fn read_from<T: std::io::Read>(reader: &mut T) -> Result<Self, RunDataFileError> {
