@@ -173,7 +173,23 @@ impl eframe::App for HaiDomoApp {
 
         egui::TopBottomPanel::top("run_title").show(ctx, |ui| {
             ui.heading("Ur Mom");
-            ui.label("Any%");
+            let inner_response = ui.horizontal(|ui| ui.label("Any%"));
+            let sense = egui::Sense::click().union(egui::Sense::hover());
+            let innr = inner_response.inner;
+            let resp = inner_response.response;
+            let resp = ui.interact(resp.rect, resp.id, sense.clone());
+            let bgrs = ui.interact_bg(sense.clone());
+            if resp.double_clicked() || innr.double_clicked() {
+                println!("[INFO] Double clicked area");
+            } else if bgrs.double_clicked() {
+                if let Some(mouse) = ui.input(|i| i.pointer.interact_pos()) {
+                    if resp.rect.top() < mouse.y && mouse.y < resp.rect.bottom() {
+                        println!("[INFO] Double clicked lower background");
+                    } else {
+                        println!("[INFO] Double clicked upper background");
+                    }
+                }
+            }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
