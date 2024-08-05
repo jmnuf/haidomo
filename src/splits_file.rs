@@ -448,7 +448,7 @@ mod tests {
         res_idx += expected_header.len();
 
         // Test Splits section
-        // TODO> Expand it to how the Attempts section is for easier understanding
+        // TODO: Expand it to how the Attempts section is for easier understanding
         assert!(
             res_len - res_idx > expected_splits.len(),
             "Generated splits section is too small! Expected {} but got {}",
