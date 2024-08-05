@@ -79,10 +79,10 @@ impl HaiDomoApp {
             run_data: RunData::new(format!("{run_title}:{run_subtitle}"), vec![]),
             at: 0,
 
-	    run_title: run_title,
-	    run_subtitle: run_subtitle,
-	    editing_run_title: false,
-	    editing_run_subtitle: false,
+            run_title: run_title,
+            run_subtitle: run_subtitle,
+            editing_run_title: false,
+            editing_run_subtitle: false,
         }
     }
 
@@ -97,18 +97,18 @@ impl HaiDomoApp {
             .map(|(idx, _)| (*idx, StopSplit::new()))
             .collect();
         println!("[INFO] Creating HaiDomoApp with {} splits...", splits.len());
-	let title = run_data.get_title().to_string();
-	let subtitle = run_data.get_subtitle().unwrap_or("").to_string();
+        let title = run_data.get_title().to_string();
+        let subtitle = run_data.get_subtitle().unwrap_or("").to_string();
         Self {
             stopwatch: stopwatch,
             splits: splits,
             run_data: run_data,
             at: 0,
 
-	    run_title: title,
-	    run_subtitle: subtitle,
-	    editing_run_title: false,
-	    editing_run_subtitle: false,
+            run_title: title,
+            run_subtitle: subtitle,
+            editing_run_title: false,
+            editing_run_subtitle: false,
         }
     }
 
@@ -189,37 +189,57 @@ impl eframe::App for HaiDomoApp {
         }
         let timestamp = self.timestamp().expanded();
 
-        egui::TopBottomPanel::top("run_title").show(ctx, |ui| {
-            ui.heading("Ur Mom");
-            let inner_response = ui.horizontal(|ui| {
-		if self.editing_run_subtitle {
-		    let r = ui.text_edit_singleline(&mut self.run_subtitle);
-		    self.run_data.set_subtitle(self.run_subtitle.as_str());
-		    if r.lost_focus() {
-			self.editing_run_subtitle = false;
-		    } else {
-			r.request_focus();
-		    }
-		    r
-		} else {
-		    ui.label(&self.run_subtitle)
-		}
-	    });
-            let sense = egui::Sense::click().union(egui::Sense::hover());
-            let innr = inner_response.inner;
-            let resp = inner_response.response;
-            let resp = ui.interact(resp.rect, resp.id, sense.clone());
-            let bgrs = ui.interact_bg(sense.clone());
-            if resp.double_clicked() || innr.double_clicked() {
-		self.editing_run_subtitle = !self.editing_run_subtitle;
-            } else if bgrs.double_clicked() {
-                if let Some(mouse) = ui.input(|i| i.pointer.interact_pos()) {
-                    if resp.rect.top() < mouse.y && mouse.y < resp.rect.bottom() {
-			self.editing_run_subtitle = !self.editing_run_subtitle;
-                    } else {
-                        println!("[INFO] Double clicked upper background");
+        egui::TopBottomPanel::top("run_name").show(ctx, |ui| {
+            if self.editing_run_title {
+                let resp = ui.text_edit_singleline(&mut self.run_title);
+                self.run_data.set_title(self.run_title.as_str());
+                if resp.lost_focus() {
+                    self.editing_run_title = false;
+                } else {
+                    resp.request_focus();
+                }
+            } else {
+                let resp = ui.heading(&self.run_title);
+                if resp.double_clicked() {
+                    self.editing_run_title = true;
+                    self.editing_run_subtitle = false;
+                }
+            }
+            let resp = if self.editing_run_subtitle {
+                let resp = ui.text_edit_singleline(&mut self.run_subtitle);
+                self.run_data.set_subtitle(self.run_subtitle.as_str());
+                if resp.lost_focus() {
+                    self.editing_run_subtitle = false;
+                } else {
+                    resp.request_focus();
+                }
+                resp
+            } else {
+                let resp = ui.label(&self.run_subtitle);
+                if resp.double_clicked() {
+                    self.editing_run_subtitle = true;
+                    self.editing_run_title = false;
+                }
+                resp
+            };
+            // Only be able to edit title/subtitle when stopwatch is not running
+            if !self.stopwatch.is_running() {
+                let sense = egui::Sense::click().union(egui::Sense::hover());
+                let bg_resp = ui.interact_bg(sense);
+                if bg_resp.double_clicked() {
+                    if let Some(mouse) = ui.input(|i| i.pointer.interact_pos()) {
+                        if resp.rect.top() < mouse.y && mouse.y < resp.rect.bottom() {
+                            self.editing_run_subtitle = !self.editing_run_subtitle;
+                            self.editing_run_title = false;
+                        } else {
+                            self.editing_run_title = !self.editing_run_title;
+                            self.editing_run_subtitle = false;
+                        }
                     }
                 }
+            } else {
+                self.editing_run_title = false;
+                self.editing_run_subtitle = false;
             }
         });
 
@@ -253,17 +273,19 @@ impl eframe::App for HaiDomoApp {
             .show(ctx, |ui| {
                 timestamp.show(ui, 64.0, 32.0);
 
-                if ui.input(|i| i.key_pressed(egui::Key::Space)) {
-                    if !self.is_started() {
-                        self.start_timer();
-                    } else if self.stopwatch.toggle() {
-                        println!("[INFO] Stopwatch has been turned on");
-                        ctx.request_repaint();
-                    } else {
-                        println!("[INFO] Stopwatch has been turned off");
+                if !self.editing_run_title && !self.editing_run_subtitle {
+                    if ui.input(|i| i.key_pressed(egui::Key::Space)) {
+                        if !self.is_started() {
+                            self.start_timer();
+                        } else if self.stopwatch.toggle() {
+                            println!("[INFO] Stopwatch has been turned on");
+                            ctx.request_repaint();
+                        } else {
+                            println!("[INFO] Stopwatch has been turned off");
+                        }
+                    } else if ui.input(|i| i.key_pressed(egui::Key::S)) {
+                        self.next_split();
                     }
-                } else if ui.input(|i| i.key_pressed(egui::Key::S)) {
-                    self.next_split();
                 }
             });
     }

@@ -95,50 +95,50 @@ impl RunData {
     }
 
     pub fn get_title(&self) -> &str {
-	if let Some(i) = self.name.find(':') {
-	    &self.name[0..i]
-	} else {
-	    &self.name[0..]
-	}
+        if let Some(i) = self.name.find(':') {
+            &self.name[0..i]
+        } else {
+            &self.name[0..]
+        }
     }
     pub fn set_title(&mut self, title: &str) {
-	let subtitle = if let Some(i) = self.name.find(':') {
-	    if i + 1 >= self.name.len() {
-		""
-	    } else {
-		&self.name[i+1..]
-	    }
-	} else {
-	    ""
-	};
-	if subtitle == "" {
-	    self.name = title.to_string();
-	} else {
-	    self.name = format!("{title}:{subtitle}");
-	}
+        let subtitle = if let Some(i) = self.name.find(':') {
+            if i + 1 >= self.name.len() {
+                ""
+            } else {
+                &self.name[i + 1..]
+            }
+        } else {
+            ""
+        };
+        if subtitle == "" {
+            self.name = title.to_string();
+        } else {
+            self.name = format!("{title}:{subtitle}");
+        }
     }
     pub fn get_subtitle(&self) -> Option<&str> {
-	if let Some(i) = self.name.find(':') {
-	    if i + 1 >= self.name.len() {
-		None
-	    } else {
-		self.name.get(i+1..)
-	    }
-	} else {
-	    None
-	}
+        if let Some(i) = self.name.find(':') {
+            if i + 1 >= self.name.len() {
+                None
+            } else {
+                self.name.get(i + 1..)
+            }
+        } else {
+            None
+        }
     }
     pub fn set_subtitle(&mut self, subtitle: &str) {
-	let title = if let Some(i) = self.name.find(':') {
-	    &self.name[0..i]
-	} else {
-	    ""
-	};
-	if subtitle == "" {
-	    self.name = title.to_string();
-	} else {
-	    self.name = format!("{title}:{subtitle}");
-	}
+        let title = if let Some(i) = self.name.find(':') {
+            &self.name[0..i]
+        } else {
+            ""
+        };
+        if subtitle == "" {
+            self.name = title.to_string();
+        } else {
+            self.name = format!("{title}:{subtitle}");
+        }
     }
 
     pub fn get_indexed_split_names(&self) -> Vec<(usize, String)> {
