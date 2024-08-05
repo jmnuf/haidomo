@@ -51,7 +51,7 @@ fn main() -> Result<(), eframe::Error> {
                 splits.push(split);
                 split_names.push(name);
             }
-            let run_data = RunData::new(String::from("UrMom"), split_names);
+            let run_data = RunData::new(String::from("UrMom:Any%"), split_names);
             Box::new(HaiDomoApp::new_with_splits(cc, sw, run_data))
         }),
     )
@@ -62,16 +62,27 @@ struct HaiDomoApp {
     splits: Vec<(usize, StopSplit)>,
     run_data: RunData,
     at: usize,
+
+    // State
+    run_title: String,
+    run_subtitle: String,
+    editing_run_title: bool,
+    editing_run_subtitle: bool,
 }
 
 impl HaiDomoApp {
-    fn new(_cc: &eframe::CreationContext<'_>, run_name: String) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>, run_title: String, run_subtitle: String) -> Self {
         println!("[INFO] Creating HaiDomoApp...");
         Self {
             stopwatch: Stopwatch::new(),
             splits: Vec::new(),
-            run_data: RunData::new(run_name, vec![]),
+            run_data: RunData::new(format!("{run_title}:{run_subtitle}"), vec![]),
             at: 0,
+
+	    run_title: run_title,
+	    run_subtitle: run_subtitle,
+	    editing_run_title: false,
+	    editing_run_subtitle: false,
         }
     }
 
@@ -86,11 +97,18 @@ impl HaiDomoApp {
             .map(|(idx, _)| (*idx, StopSplit::new()))
             .collect();
         println!("[INFO] Creating HaiDomoApp with {} splits...", splits.len());
+	let title = run_data.get_title().to_string();
+	let subtitle = run_data.get_subtitle().unwrap_or("").to_string();
         Self {
             stopwatch: stopwatch,
             splits: splits,
             run_data: run_data,
             at: 0,
+
+	    run_title: title,
+	    run_subtitle: subtitle,
+	    editing_run_title: false,
+	    editing_run_subtitle: false,
         }
     }
 
@@ -173,18 +191,31 @@ impl eframe::App for HaiDomoApp {
 
         egui::TopBottomPanel::top("run_title").show(ctx, |ui| {
             ui.heading("Ur Mom");
-            let inner_response = ui.horizontal(|ui| ui.label("Any%"));
+            let inner_response = ui.horizontal(|ui| {
+		if self.editing_run_subtitle {
+		    let r = ui.text_edit_singleline(&mut self.run_subtitle);
+		    self.run_data.set_subtitle(self.run_subtitle.as_str());
+		    if r.lost_focus() {
+			self.editing_run_subtitle = false;
+		    } else {
+			r.request_focus();
+		    }
+		    r
+		} else {
+		    ui.label(&self.run_subtitle)
+		}
+	    });
             let sense = egui::Sense::click().union(egui::Sense::hover());
             let innr = inner_response.inner;
             let resp = inner_response.response;
             let resp = ui.interact(resp.rect, resp.id, sense.clone());
             let bgrs = ui.interact_bg(sense.clone());
             if resp.double_clicked() || innr.double_clicked() {
-                println!("[INFO] Double clicked area");
+		self.editing_run_subtitle = !self.editing_run_subtitle;
             } else if bgrs.double_clicked() {
                 if let Some(mouse) = ui.input(|i| i.pointer.interact_pos()) {
                     if resp.rect.top() < mouse.y && mouse.y < resp.rect.bottom() {
-                        println!("[INFO] Double clicked lower background");
+			self.editing_run_subtitle = !self.editing_run_subtitle;
                     } else {
                         println!("[INFO] Double clicked upper background");
                     }
