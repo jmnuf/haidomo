@@ -219,6 +219,48 @@ impl HaiDomoApp {
             }
         }
     }
+
+    fn load_run_data(&mut self, f: &mut File) -> Result<(), (&str, String)> {
+        // TODO: Make a new function that actually just modifies the structs instead of making a new one
+        match RunData::read_from(f) {
+            Err(e) => match e {
+                RunDataFileError::IOError(err) => {
+                    let msg = (
+                        "Failed to save run data",
+                        format!("Issue occured while attempting to read file contents:\n  {err}"),
+                    );
+                    Err(msg)
+                }
+                RunDataFileError::ByteGenError(_) => {
+                    unreachable!("Should never get a byte generation error when loading a file");
+                }
+                RunDataFileError::ParseError(err) => {
+                    let msg = (
+                        "Failed to load run data",
+                        format!("Issue occured when reading file contents:\n  {err:#?}"),
+                    );
+                    Err(msg)
+                }
+            },
+            Ok(new_data) => {
+                let splits: Vec<_> = new_data
+                    .get_indexed_split_names()
+                    .iter()
+                    .map(|(idx, _)| (*idx, StopSplit::new()))
+                    .collect();
+                let title = new_data.get_title().to_string();
+                let subtitle = new_data.get_subtitle().unwrap_or("").to_string();
+                self.splits = splits;
+                self.run_data = new_data;
+                self.at = 0;
+                self.run_title = title;
+                self.run_subtitle = subtitle;
+                self.editing_run_title = false;
+                self.editing_run_subtitle = false;
+		Ok(())
+            }
+        }
+    }
 }
 
 impl eframe::App for HaiDomoApp {
@@ -359,6 +401,45 @@ impl eframe::App for HaiDomoApp {
 						    .set_title("Saved Run Data")
 						    .set_level(rfd::MessageLevel::Info)
 						    .set_description("Succesfully saved your binary six shooter.\nShe's a sweet six shooter, she knows how to get down!")
+						    .set_buttons(rfd::MessageButtons::Ok)
+						    .show();
+					    }
+					};
+				    },
+				};
+			    }
+			} else if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::O)) {
+			    let file_path = rfd::FileDialog::new()
+				.add_filter("Binary Six Shooter", &["binss"])
+				.set_file_name(self.run_data.get_name())
+				.set_title("Load run data")
+				.pick_file();
+			    if let Some(file_path) = file_path {
+				match File::open(file_path) {
+				    Err(err) => {
+					rfd::MessageDialog::new()
+					    .set_title("Failed to open run data")
+					    .set_level(rfd::MessageLevel::Error)
+					    .set_description(format!("Issue occured while trying to open file: {err}"))
+					    .set_buttons(rfd::MessageButtons::Ok)
+					    .show();
+				    },
+				    Ok(mut f) => {
+					match self.load_run_data(&mut f) {
+					    Err((title, message)) => {
+						rfd::MessageDialog::new()
+						    .set_title(title)
+						    .set_level(rfd::MessageLevel::Error)
+						    .set_description(message)
+						    .set_buttons(rfd::MessageButtons::Ok)
+						    .show();
+					    },
+					    Ok(_) => {
+						// TODO: Probably can live without this notif?
+						rfd::MessageDialog::new()
+						    .set_title("Saved Run Data")
+						    .set_level(rfd::MessageLevel::Info)
+						    .set_description("Succesfully loaded your binary six shooter.\nShe got me beat down! Tight grip!")
 						    .set_buttons(rfd::MessageButtons::Ok)
 						    .show();
 					    }
