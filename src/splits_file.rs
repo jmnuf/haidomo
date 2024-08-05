@@ -141,6 +141,10 @@ impl RunData {
         }
     }
 
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
+    }
+
     pub fn get_indexed_split_names(&self) -> Vec<(usize, String)> {
         return self
             .splits

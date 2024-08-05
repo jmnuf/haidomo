@@ -1,12 +1,16 @@
+use rfd;
+
 mod stopwatch;
 use stopwatch::*;
 
 mod splits_file;
-use splits_file::RunData;
+use splits_file::{RunData, RunDataFileError};
 
 use eframe::egui;
 use eframe::egui::Widget;
 use std::fmt::Display;
+use std::fs::File;
+use std::io::Write;
 use std::time::Duration;
 
 macro_rules! rich_text {
@@ -180,6 +184,41 @@ impl HaiDomoApp {
         let next = &mut self.splits.get_mut(self.at).unwrap().1;
         next.start(&self.stopwatch);
     }
+
+    fn save_run_data(&self, f: &mut File) -> Result<(), (&str, String)> {
+        match self.run_data.write_to(f) {
+            Err(e) => match e {
+                RunDataFileError::IOError(err) => {
+                    let msg = (
+                        "Failed to save run data",
+                        format!("Issue occured when writing file contents:\n  {err}"),
+                    );
+                    Err(msg)
+                }
+                RunDataFileError::ByteGenError(msg) => {
+                    let msg = (
+                        "Failed to save run data",
+                        format!("Issue occured when writing file contents:\n  {msg}"),
+                    );
+                    Err(msg)
+                }
+                RunDataFileError::ParseError(_) => {
+                    unreachable!("Should never get a parse error when saving a file")
+                }
+            },
+            Ok(_) => {
+                if let Err(err) = f.flush() {
+                    let msg = (
+                        "Failed to save run data",
+                        format!("Issue occured when writing file contents:\n  {err}"),
+                    );
+                    Err(msg)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for HaiDomoApp {
@@ -252,12 +291,12 @@ impl eframe::App for HaiDomoApp {
                 ui.vertical_centered_justified(|ui| {
                     for s in self.splits.iter() {
                         let name = self.get_split_name(*&s.0).unwrap();
-                        let data = &s.1;
+                        let split = &s.1;
                         ui.horizontal(|ui| {
                             // Display: $name | split-data
                             ui.label(rich_text!(name).monospace());
                             ui.separator();
-                            data.show(ui, &self.stopwatch);
+                            split.show(ui, &self.stopwatch);
                         });
                     }
                 });
@@ -271,10 +310,12 @@ impl eframe::App for HaiDomoApp {
                     .inner_margin(4.0)
             })
             .show(ctx, |ui| {
+		use egui::{Modifiers, Key};
+
                 timestamp.show(ui, 64.0, 32.0);
 
                 if !self.editing_run_title && !self.editing_run_subtitle {
-                    if ui.input(|i| i.key_pressed(egui::Key::Space)) {
+                    if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Space)) {
                         if !self.is_started() {
                             self.start_timer();
                         } else if self.stopwatch.toggle() {
@@ -283,9 +324,50 @@ impl eframe::App for HaiDomoApp {
                         } else {
                             println!("[INFO] Stopwatch has been turned off");
                         }
-                    } else if ui.input(|i| i.key_pressed(egui::Key::S)) {
+                    } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::S)) {
                         self.next_split();
                     }
+		    if !self.stopwatch.is_running() {
+			if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::S)) {
+			    let file_path = rfd::FileDialog::new()
+				.add_filter("Binary Six Shooter", &["binss"])
+				.set_file_name(self.run_data.get_name())
+				.set_title("Save run data")
+				.save_file();
+			    if let Some(file_path) = file_path {
+				match File::create(file_path) {
+				    Err(e) => {
+					rfd::MessageDialog::new()
+					    .set_title("Failed to save run data")
+					    .set_level(rfd::MessageLevel::Error)
+					    .set_description(format!("Issue occured when opening file: {e}"))
+					    .set_buttons(rfd::MessageButtons::Ok)
+					    .show();
+				    },
+				    Ok(mut f) => {
+					match self.save_run_data(&mut f) {
+					    Err((title, message)) => {
+						rfd::MessageDialog::new()
+						    .set_title(title)
+						    .set_level(rfd::MessageLevel::Error)
+						    .set_description(message)
+						    .set_buttons(rfd::MessageButtons::Ok)
+						    .show();
+					    },
+					    Ok(_) => {
+						rfd::MessageDialog::new()
+						    .set_title("Saved Run Data")
+						    .set_level(rfd::MessageLevel::Info)
+						    .set_description("Succesfully saved your binary six shooter.\nShe's a sweet six shooter, she knows how to get down!")
+						    .set_buttons(rfd::MessageButtons::Ok)
+						    .show();
+					    }
+					};
+				    },
+				};
+			    }
+			}
+		    }
                 }
             });
     }
