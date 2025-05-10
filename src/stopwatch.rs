@@ -200,6 +200,10 @@ impl Stopwatch {
         }
         return split_time;
     }
+
+    pub fn set_elapsed_time(&mut self, new_elapsed: Duration) {
+	self.elapsed = new_elapsed;
+    }
 }
 impl egui::Widget for Stopwatch {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
@@ -279,7 +283,10 @@ impl StopSplit {
             let elapsed = sw.time_elapsed() - self.split_start.unwrap();
             self.elapsed = elapsed;
             self.completed = true;
-        }
+        } else {
+	    self.elapsed = sw.time_elapsed();
+	    self.completed = true;
+	}
     }
 
     pub fn resume(&mut self) {

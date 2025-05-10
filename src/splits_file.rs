@@ -68,10 +68,17 @@ pub struct RunData {
     splits: Vec<String>,
     attempts: Vec<AttemptData>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AttemptData {
     total_duration: Duration,
     split_times: Vec<f64>,
+}
+impl  AttemptData {
+    fn as_durations(&self) -> Vec<Duration> {
+	self.split_times.iter()
+	    .map(|x| Duration::from_secs_f64(*x))
+	    .collect()
+    }
 }
 
 impl RunData {
@@ -92,6 +99,26 @@ impl RunData {
         self.splits.push(split_name);
         let index = self.splits.len();
         return Ok(index);
+    }
+
+    pub fn set_split_name(&mut self, index: usize, name: String) {
+	self.splits[index] = name;
+    }
+    
+    pub fn get_best_attempt(&self) -> Option<(Duration, Vec<Duration>)> {
+	if self.attempts.is_empty() {
+	    return None;
+	}
+	let mut all_attempts = self.attempts.clone();
+	all_attempts.sort_by(|a, b| {
+	    a.total_duration.cmp(&b.total_duration)
+	});
+	if let Some(attempt) = all_attempts.get(0) {
+	    let best = (attempt.total_duration.clone(), attempt.as_durations());
+	    Some(best)
+	} else {
+	    None
+	}
     }
 
     pub fn get_title(&self) -> &str {

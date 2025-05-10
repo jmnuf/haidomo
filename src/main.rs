@@ -7,8 +7,6 @@ mod splits_file;
 use splits_file::{RunData, RunDataFileError};
 
 use eframe::egui;
-use eframe::egui::Widget;
-use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
@@ -29,7 +27,7 @@ fn main() -> Result<(), eframe::Error> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Hai Domo!")
-            //.with_resizable(false)
+            .with_resizable(false)
             .with_min_inner_size(egui::Vec2 {
                 x: width,
                 y: height,
@@ -37,7 +35,7 @@ fn main() -> Result<(), eframe::Error> {
             .with_inner_size(egui::Vec2 {
                 x: width,
                 y: height,
-            }), //.with_always_on_top(),
+            }),//.with_always_on_top(),
         ..Default::default()
     };
 
@@ -72,6 +70,10 @@ struct HaiDomoApp {
     run_subtitle: String,
     editing_run_title: bool,
     editing_run_subtitle: bool,
+    editing_run_split_index: Option<usize>,
+
+    // ???
+    best_run: Option<(Duration, Vec<Duration>)>,
 }
 
 impl HaiDomoApp {
@@ -87,6 +89,10 @@ impl HaiDomoApp {
             run_subtitle: run_subtitle,
             editing_run_title: false,
             editing_run_subtitle: false,
+	    editing_run_split_index: None,
+
+	    //
+	    best_run: None,
         }
     }
 
@@ -113,6 +119,9 @@ impl HaiDomoApp {
             run_subtitle: subtitle,
             editing_run_title: false,
             editing_run_subtitle: false,
+	    editing_run_split_index: None,
+
+	    best_run: None,
         }
     }
 
@@ -138,7 +147,8 @@ impl HaiDomoApp {
     }
 
     fn is_started(&self) -> bool {
-        self.stopwatch.is_running() || !self.stopwatch.time_elapsed().is_zero()
+	// If stopwatch is running or the elapsed time is greater than 0 or we are further than the first split
+        self.stopwatch.is_running() || !self.stopwatch.time_elapsed().is_zero() || self.at > 0
     }
 
     fn is_timer_running(&self) -> bool {
@@ -175,6 +185,7 @@ impl HaiDomoApp {
     fn next_split(&mut self) {
         self.at += 1;
         if self.at >= self.splits.len() {
+	    self.at = self.splits.len();
             self.stop_timer();
             return;
         }
@@ -257,6 +268,16 @@ impl HaiDomoApp {
                 self.run_subtitle = subtitle;
                 self.editing_run_title = false;
                 self.editing_run_subtitle = false;
+		self.stopwatch.clear();
+		match self.run_data.get_best_attempt() {
+		    None => {
+			self.best_run = None;
+		    },
+		    Some(best) => {
+			self.stopwatch.set_elapsed_time(best.0.clone());
+			self.best_run = Some(best);
+		    }
+		}
 		Ok(())
             }
         }
@@ -330,13 +351,29 @@ impl eframe::App for HaiDomoApp {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let max_rect = ui.max_rect();
                 ui.set_width(max_rect.width());
+		// TODO: Make it possible to reorder splits by dragging them
+		// TODO: Make it possible to add and remove splits
                 ui.vertical_centered_justified(|ui| {
-                    for s in self.splits.iter() {
-                        let name = self.get_split_name(*&s.0).unwrap();
+                    for (i, s) in self.splits.iter().enumerate() {
+                        let mut name = self.get_split_name(*&s.0).unwrap().clone();
                         let split = &s.1;
+			// TODO: Make it possible to edit the split name through double clicking it
                         ui.horizontal(|ui| {
                             // Display: $name | split-data
-                            ui.label(rich_text!(name).monospace());
+			    match self.editing_run_split_index {
+				None => ui.label(rich_text!(name).monospace()),
+				Some(index) => {
+				    let r = if index == i {
+					let r = ui.text_edit_singleline(&mut name);
+					self.run_data.set_split_name(index, name);
+					r
+				    } else {
+					ui.label(rich_text!(name).monospace())
+				    };
+
+				    r
+				}
+			    };
                             ui.separator();
                             split.show(ui, &self.stopwatch);
                         });
